@@ -20,10 +20,19 @@ contract EduConnect {
         address organizer;
         bool isHackathon;
     }
+    struct ProfileView {
+        string fullName;
+        string ipfsProfilePicture;
+        string title;
+        string[] techStack;
+        string  about;
+        address userAddress;
+    }
 
     mapping(address => Profile) public profiles;
     mapping(address => bool) public hasProfile;
     mapping(address => mapping(address => bool)) public friendships;
+    address[] public allProfiles;
     Event[] public events;
 
     event ProfileCreated(address indexed user, string fullName);
@@ -53,6 +62,7 @@ contract EduConnect {
         newProfile.about = _about;
 
         hasProfile[msg.sender] = true;
+        allProfiles.push(msg.sender);
         emit ProfileCreated(msg.sender, _fullName);
     }
 
@@ -133,7 +143,65 @@ contract EduConnect {
             profile.friendList
         );
     }
+    function getAllProfiles() public view returns (ProfileView[] memory) {
+        ProfileView[] memory profilesArr = new ProfileView[](allProfiles.length);
+        
+        for (uint i = 0; i < allProfiles.length; i++) {
+            address userAddress = allProfiles[i];
+            Profile storage profile = profiles[userAddress];
+            
+            profilesArr[i] = ProfileView({
+                fullName: profile.fullName,
+                ipfsProfilePicture: profile.ipfsProfilePicture,
+                title: profile.title,
+                techStack: profile.techStack,
+                about: profile.about,
+                userAddress: userAddress
+            });
+        }
+        
+        return profilesArr;
+    }
 
+    function getProfileByTech(string[] memory _techStack) public view returns (ProfileView[] memory _filteredProfiles) {
+        ProfileView[] memory profilesArr = new ProfileView[](allProfiles.length);
+        
+        for(uint i = 0; i < allProfiles.length; i++) {
+            address userAddress = allProfiles[i];
+            Profile storage profile = profiles[userAddress];
+            
+            if (_techStack.length != 0 && _techStack.length == profile.techStack.length){
+                for (uint j = 0; j <_techStack.length ; j++) {
+                    string memory techStackItem = _techStack[j];
+                    
+                    bool itemFound = false;
+                    for (uint k = 0; k < profile.techStack.length ; k++) {
+                        string memory currentTechItem = profile.techStack[k];
+                        
+                        if(keccak256(abi.encodePacked(currentTechItem)) == keccak256(abi.encodePacked(techStackItem))){
+                            itemFound = true;
+                            break;
+                        }
+                    }
+                   if(itemFound){
+                    profilesArr[profilesArr.length-1] = ProfileView({
+                        fullName: profile.fullName,
+                        ipfsProfilePicture: profile.ipfsProfilePicture,
+                        title: profile.title,
+                        techStack: profile.techStack,
+                        about: profile.about,
+                        userAddress: userAddress
+                   });
+                    }
+            }
+        }
+        
+        }
+        return profilesArr;
+    }
+    function getEvents() public view returns(Event[] memory){   
+        return events;
+     }
     function getEventCount() public view returns (uint256) {
         return events.length;
     }
