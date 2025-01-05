@@ -17,26 +17,10 @@ contract EduConnect {
     struct Event {
         string name;
         string description;
-        uint256 fromDate;
-        uint256 toDate;
+        uint256 date;
         address organizer;
         bool isHackathon;
-        uint256 eventFee;
-        mapping(address => bool) registeredParticipants;
-        address[] participantList;
     }
-
-    struct EventView {
-        string name;
-        string description;
-        uint256 fromDate;
-        uint256 toDate;
-        address organizer;
-        bool isHackathon;
-        uint256 eventFee;
-        uint256 eventId;
-    }
-
     struct ProfileView {
         string fullName;
         string ipfsProfilePicture;
@@ -51,26 +35,14 @@ contract EduConnect {
     mapping(address => mapping(address => bool)) public friendships;
     address[] public allProfiles;
     Event[] public events;
-    uint256 public organizerFee = 0.1 ether;
-    address owner;
 
     event ProfileCreated(address indexed user, string fullName);
     event FriendRequestSent(address indexed from, address indexed to);
     event FriendRequestAccepted(address indexed from, address indexed to);
     event EventCreated(uint256 indexed eventId, string name, bool isHackathon);
-    event ParticipantRegistered(uint256 indexed eventId, address indexed participant);
-
-    constructor() {
-        owner = msg.sender;
-    }
 
     modifier onlyRegistered() {
         require(hasProfile[msg.sender], "Profile not registered");
-        _;
-    }
-
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Only owner can call this function");
         _;
     }
 
@@ -174,51 +146,19 @@ contract EduConnect {
 
     function createEvent(
         string memory _name,
-        uint256 _fromDate,
-        uint256 _toDate,
         string memory _description,
-        bool _isHackathon,
-        uint256 _eventFee,
-        address _organizer
-    ) public payable {
-        require(_fromDate < _toDate, "Invalid date range");
-        require(_fromDate > block.timestamp, "Event cannot start in the past");
-        
-        if (_isHackathon) {
-            require(msg.value == organizerFee, "Incorrect organizer fee");
-            payable(owner).transfer(msg.value);
-        }
-        address eventOrganizer = _organizer == address(0) ? msg.sender : _organizer;
-        
-        uint256 eventId = events.length;
-        Event storage newEvent = events.push();
-        newEvent.name = _name;
-        newEvent.description = _description;
-        newEvent.fromDate = _fromDate;
-        newEvent.toDate = _toDate;
-        newEvent.organizer = eventOrganizer;
-        newEvent.isHackathon = _isHackathon;
-        newEvent.eventFee = _eventFee;
+        uint256 _date,
+        bool _isHackathon
+    ) public onlyRegistered {
+        events.push(Event({
+            name: _name,
+            description: _description,
+            date: _date,
+            organizer: msg.sender,
+            isHackathon: _isHackathon
+        }));
 
-        emit EventCreated(eventId, _name, _isHackathon);
-    }
-
-    function registerEvent(uint256 _eventId) public payable {
-        require(_eventId < events.length, "Event does not exist");
-        Event storage evt = events[_eventId];
-        
-        require(block.timestamp < evt.fromDate, "Event registration closed");
-        require(!evt.registeredParticipants[msg.sender], "Already registered");
-        
-        if (evt.eventFee > 0) {
-            require(msg.value == evt.eventFee, "Incorrect event fee");
-            payable(evt.organizer).transfer(msg.value);
-        }
-        
-        evt.registeredParticipants[msg.sender] = true;
-        evt.participantList.push(msg.sender);
-        
-        emit ParticipantRegistered(_eventId, msg.sender);
+        emit EventCreated(events.length - 1, _name, _isHackathon);
     }
 
     function getProfile(address _user) public view returns (
@@ -296,38 +236,8 @@ contract EduConnect {
         return profilesArr;
     }
 
-    function getEvents() public view returns(EventView[] memory) {
-        EventView[] memory eventViews = new EventView[](events.length);
-        
-        for (uint256 i = 0; i < events.length; i++) {
-            Event storage evt = events[i];
-            eventViews[i] = EventView({
-                name: evt.name,
-                description: evt.description,
-                fromDate: evt.fromDate,
-                toDate: evt.toDate,
-                organizer: evt.organizer,
-                isHackathon: evt.isHackathon,
-                eventFee: evt.eventFee,
-                eventId: i
-            });
-        }
-        
-        return eventViews;
-    }
-
-    function getEventParticipants(uint256 _eventId) public view returns(address[] memory) {
-        require(_eventId < events.length, "Event does not exist");
-        return events[_eventId].participantList;
-    }
-
-    function isRegisteredForEvent(uint256 _eventId, address _user) public view returns(bool) {
-        require(_eventId < events.length, "Event does not exist");
-        return events[_eventId].registeredParticipants[_user];
-    }
-
-    function setOrganizerFee(uint256 _newFee) public onlyOwner {
-        organizerFee = _newFee;
+    function getEvents() public view returns(Event[] memory){   
+        return events;
     }
 
     function getEventCount() public view returns (uint256) {
