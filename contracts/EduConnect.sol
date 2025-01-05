@@ -11,6 +11,7 @@ contract EduConnect {
         mapping(address => bool) isFriend;
         mapping(address => bool) pendingRequests;
         address[] friendList;
+        address[] pendingRequestsList;  // Added to store list of pending requests
     }
 
     struct Event {
@@ -25,7 +26,7 @@ contract EduConnect {
         string ipfsProfilePicture;
         string title;
         string[] techStack;
-        string  about;
+        string about;
         address userAddress;
     }
 
@@ -73,6 +74,7 @@ contract EduConnect {
         require(!profiles[_to].pendingRequests[msg.sender], "Request already sent");
 
         profiles[_to].pendingRequests[msg.sender] = true;
+        profiles[_to].pendingRequestsList.push(msg.sender);  // Add to pending requests list
         emit FriendRequestSent(msg.sender, _to);
     }
 
@@ -88,9 +90,44 @@ contract EduConnect {
         friendships[msg.sender][_from] = true;
         friendships[_from][msg.sender] = true;
         
+        // Remove from pending requests
         profiles[msg.sender].pendingRequests[_from] = false;
+        removePendingRequest(msg.sender, _from);
         
         emit FriendRequestAccepted(_from, msg.sender);
+    }
+
+    // New function to remove pending request from the list
+    function removePendingRequest(address user, address requestor) internal {
+        Profile storage profile = profiles[user];
+        for (uint i = 0; i < profile.pendingRequestsList.length; i++) {
+            if (profile.pendingRequestsList[i] == requestor) {
+                // Move the last element to the position we want to delete
+                profile.pendingRequestsList[i] = profile.pendingRequestsList[profile.pendingRequestsList.length - 1];
+                // Remove the last element
+                profile.pendingRequestsList.pop();
+                break;
+            }
+        }
+    }
+
+    // New function to get pending requests
+    function getPendingRequests(address _user) public view returns (ProfileView[] memory) {
+        require(hasProfile[_user], "Profile does not exist");
+        Profile storage userProfile = profiles[_user];
+        ProfileView[] memory profilesArr = new ProfileView[](userProfile.pendingRequestsList.length);
+        for(uint i=0;i<userProfile.pendingRequestsList.length;i++){
+            Profile storage friend = profiles[userProfile.pendingRequestsList[i]];
+            profilesArr[i] = ProfileView({
+                fullName: friend.fullName,
+                ipfsProfilePicture: friend.ipfsProfilePicture,
+                title: friend.title,
+                techStack: friend.techStack,
+                about: friend.about,
+                userAddress:userProfile.pendingRequestsList[i]
+            });
+        }
+        return profilesArr;
     }
 
     function getFriends(address _user) public view returns (address[] memory) {
@@ -125,24 +162,23 @@ contract EduConnect {
     }
 
     function getProfile(address _user) public view returns (
-        string memory fullName,
-        string memory ipfsProfilePicture,
-        string memory title,
-        string[] memory techStack,
-        string memory about,
-        address[] memory friends
+        ProfileView memory _profile
     ) {
         require(hasProfile[_user], "Profile does not exist");
         Profile storage profile = profiles[_user];
+        ProfileView memory userProfile = ProfileView({
+            fullName: profile.fullName,
+            ipfsProfilePicture: profile.ipfsProfilePicture,
+            title: profile.title,
+            techStack: profile.techStack,
+            about: profile.about,
+            userAddress:_user
+        });
         return (
-            profile.fullName,
-            profile.ipfsProfilePicture,
-            profile.title,
-            profile.techStack,
-            profile.about,
-            profile.friendList
+           userProfile
         );
     }
+
     function getAllProfiles() public view returns (ProfileView[] memory) {
         ProfileView[] memory profilesArr = new ProfileView[](allProfiles.length);
         
@@ -199,9 +235,11 @@ contract EduConnect {
         }
         return profilesArr;
     }
+
     function getEvents() public view returns(Event[] memory){   
         return events;
-     }
+    }
+
     function getEventCount() public view returns (uint256) {
         return events.length;
     }
